@@ -4,7 +4,6 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import mongoose from "mongoose";
-
 import connectDB from "./config/db";
 import configureCloudinary from "./config/cloudinary";
 import { sanitiseQuery } from "./middleware/sanitiseQuery";
@@ -19,12 +18,9 @@ import reportRoutes from "./modules/reports/report.route";
 import adminRoutes from "./modules/admin/admin.routes";
 import analyticsRoutes from "./modules/analytics/analytics.route";
 
-const allowedOrigins = (
-  process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000","https://trusteatsrepogroup8.vercel.app/"
-)
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// Parse allowed origins from env (comma-separated). Provide sensible defaults for local dev.
+const rawAllowed = process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000,https://trusteatsrepogroup8.vercel.app";
+const allowedOrigins = rawAllowed.split(",").map((o) => o.trim()).filter(Boolean);
 
 const REQUIRED_ENV_VARS = [
   "MONGO_URI",
@@ -47,40 +43,51 @@ for (const key of REQUIRED_ENV_VARS) {
 
 const app = express();
 
-// Security middleware — has to come first
+// Security middleware — must come first
 app.use(helmet());
-// CORS: only allow the configured origins and enable credentials (cookies)
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow Postman, mobile apps, curl, and server-to-server requests
-      if (!origin) {
-        return callback(null, true);
-      }
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+// CORS configuration
+const corsOptionsCommon = {
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+    "Referer",
+    "User-Agent",
+  ],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
 
-      return callback(new Error(`CORS: origin ${origin} not allowed`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "Accept",
-      "Origin",
-      "Referer",
-      "User-Agent",
-    ],
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
-  }),
-); // end cors
+if (process.env.NODE_ENV !== "production") {
+  // Development: reflect the request origin so localhost dev servers (Vite) can call the API
+  // while still allowing credentials to be sent.
+  app.use(
+    cors({
+      origin: true,
+      ...corsOptionsCommon,
+    }),
+  );
+} else {
+  // Production: strictly allow only configured origins
+  app.use(
+    cors({
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        // Allow non-browser clients (Postman, curl) which don't send Origin
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error(`CORS: origin ${origin} not allowed`));
+      },
+      ...corsOptionsCommon,
+    }),
+  );
+}
 
-// Trust reverse proxies (Render, etc) so secure cookies and IPs are handled correctly
+// Trust reverse proxies so secure cookies / IPs are handled correctly
 app.set("trust proxy", true);
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
@@ -114,16 +121,14 @@ app.use((_req, res) => {
 // Global error handler — must come last
 app.use(errorHandler);
 
-// Start this server
+// Start server
 const PORT = parseInt(process.env.PORT || "5000", 10);
 
 const start = async () => {
   configureCloudinary();
   await connectDB();
   app.listen(PORT, () => {
-    console.log(
-      `TrustEats API is live and running smoothly on http://localhost:${PORT}`,
-    );
+    console.log(`TrustEats API is live on http://localhost:${PORT}`);
     console.log(`   Environment: ${process.env.NODE_ENV}`);
     console.log(`   Health: http://localhost:${PORT}/health`);
   });
