@@ -19,8 +19,13 @@ import adminRoutes from "./modules/admin/admin.routes";
 import analyticsRoutes from "./modules/analytics/analytics.route";
 
 // Parse allowed origins from env (comma-separated). Provide sensible defaults for local dev.
-const rawAllowed = process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000,https://trusteatsrepogroup8.vercel.app";
-const allowedOrigins = rawAllowed.split(",").map((o) => o.trim()).filter(Boolean);
+const rawAllowed =
+  process.env.ALLOWED_ORIGINS ||
+  "http://localhost:5173,http://localhost:3000,https://trusteatsrepogroup8.vercel.app";
+const allowedOrigins = rawAllowed
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 const REQUIRED_ENV_VARS = [
   "MONGO_URI",
@@ -30,7 +35,7 @@ const REQUIRED_ENV_VARS = [
   "CLOUDINARY_API_KEY",
   "CLOUDINARY_API_SECRET",
   "BASE_URL",
-  "RESEND_API_KEY",
+  // 'RESEND_API_KEY', // disabled for demo
   "EMAIL_FROM",
 ];
 
@@ -43,7 +48,7 @@ for (const key of REQUIRED_ENV_VARS) {
 
 const app = express();
 
-// Security middleware — must come first
+// Security middleware 94 must come first
 app.use(helmet());
 
 // CORS configuration
@@ -63,29 +68,25 @@ const corsOptionsCommon = {
   optionsSuccessStatus: 204,
 };
 
-if (process.env.NODE_ENV !== "production") {
-  // Development: reflect the request origin so localhost dev servers (Vite) can call the API
-  // while still allowing credentials to be sent.
-  app.use(
-    cors({
-      origin: true,
-      ...corsOptionsCommon,
-    }),
-  );
-} else {
-  // Production: strictly allow only configured origins
-  app.use(
-    cors({
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        // Allow non-browser clients (Postman, curl) which don't send Origin
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        return callback(new Error(`CORS: origin ${origin} not allowed`));
-      },
-      ...corsOptionsCommon,
-    }),
-  );
-}
+const corsOptions =
+  process.env.NODE_ENV !== "production"
+    ? { origin: true, ...corsOptionsCommon }
+    : {
+        origin: (
+          origin: string | undefined,
+          callback: (err: Error | null, allow?: boolean) => void,
+        ) => {
+          // Allow non-browser clients (Postman, curl)
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) return callback(null, true);
+          return callback(new Error(`CORS: origin ${origin} not allowed`));
+        },
+        ...corsOptionsCommon,
+      };
+
+// Apply CORS middleware and ensure OPTIONS preflight is handled with the same config
+app.use(cors(corsOptions));
+// app.options("*", cors(corsOptions));
 
 // Trust reverse proxies so secure cookies / IPs are handled correctly
 app.set("trust proxy", true);
@@ -118,7 +119,7 @@ app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Route not found" });
 });
 
-// Global error handler — must come last
+// Global error handler 94 must come last
 app.use(errorHandler);
 
 // Start server

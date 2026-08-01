@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import crypto from "crypto";
+// import crypto from "crypto";
 import User from "../users/user.model";
 import Manufacturer from "../manufacturers/manufacturer.model";
 import {
@@ -87,6 +87,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   });
 
   // Send verification OTP email
+  // Log OTP to console for demo purposes ONLY!
+  console.log(`[DEMO OTP] Email: ${user.email} | OTP: ${otp}`);
   try {
     await sendEmail({
       to: user.email,
@@ -94,7 +96,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       html: otpEmailTemplate(otp, "verify"),
     });
   } catch (emailErr) {
-    // Don't fail registration if email fails — log and continue
+    // Don't fail registration if email fails  log and continue
     console.error("[Register] Failed to send verification email:", emailErr);
   }
 
@@ -102,7 +104,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     success: true,
     message:
       "Account created. Check your email for a 6-digit verification code.",
-    data: { userId: user._id, role: user.role },
+    data: {
+      userId: user._id,
+      role: user.role,
+      // DEMO ONLY, include otp in response for local testing
+      otp: process.env.NODE_ENV !== "production" ? otp : undefined,
+    },
   });
 };
 
@@ -138,7 +145,7 @@ export const verifyEmail = async (
   if (
     !user.emailVerificationOtp ||
     !user.emailVerificationOtpExpiresAt ||
-    user.emailVerificationOtp !== otp ||
+    user.emailVerificationOtp !== String(otp).trim() ||
     user.emailVerificationOtpExpiresAt < new Date()
   ) {
     res.status(400).json({ success: false, error: "Invalid or expired OTP" });
@@ -172,14 +179,13 @@ export const resendVerificationOtp = async (
 
   const user = await User.findOne({ email: email.toLowerCase().trim() });
 
-  // Always return same response, don't reveal if email exists
-  const genericResponse = {
-    success: true,
-    message: "If an unverified account exists, a new OTP has been sent.",
-  };
+  // Generic message that's safe to return in all cases
+  const genericMessage =
+    "If an unverified account exists, a new OTP has been sent.";
 
   if (!user || user.emailVerified) {
-    res.status(200).json(genericResponse);
+    // Do not reveal account existence  return generic success
+    res.status(200).json({ success: true, message: genericMessage });
     return;
   }
 
@@ -191,6 +197,9 @@ export const resendVerificationOtp = async (
     emailVerificationOtpExpiresAt: otpExpiresAt,
   });
 
+  // DEMO ONLY: log OTP to console so frontend tests can prefill it when running locally
+  console.log(`[DEMO OTP] Email: ${user.email} | New OTP: ${otp}`);
+
   try {
     await sendEmail({
       to: user.email,
@@ -201,10 +210,138 @@ export const resendVerificationOtp = async (
     console.error("[ResendOTP] Email failed:", emailErr);
   }
 
-  res.status(200).json(genericResponse);
+  type GenericResponse = {
+    success: boolean;
+    message: string;
+    data?: { otp?: string } | null;
+  };
+
+  const responseBody: GenericResponse =
+    process.env.NODE_ENV !== "production"
+      ? { success: true, message: genericMessage, data: { otp } }
+      : { success: true, message: genericMessage };
+
+  res.status(200).json(responseBody);
 };
 
-// Login
+// Forgot Password
+
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { email } = req.body;
+
+  if (typeof email !== "string" || !email.trim()) {
+    res.status(400).json({ success: false, error: "Email is required" });
+    return;
+  }
+
+  const genericMessage =
+    "If an account with that email exists, a reset OTP has been sent.";
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  if (!user) {
+    res.status(200).json({ success: true, message: genericMessage });
+    return;
+  }
+
+  const otp = generateOTP();
+  const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+
+  await User.findByIdAndUpdate(user._id, {
+    passwordResetOtp: otp,
+    passwordResetOtpExpiresAt: otpExpiresAt,
+  });
+
+  // DEMO ONLY: log OTP so dev testers can pick it up
+  console.log(`[DEMO OTP] Email: ${user.email} | Reset OTP: ${otp}`);
+
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Your TrustEats password reset code",
+      html: otpEmailTemplate(otp, "reset"),
+    });
+  } catch (emailErr) {
+    console.error("[ForgotPassword] Email failed:", emailErr);
+  }
+
+  type GenericResponse = {
+    success: boolean;
+    message: string;
+    data?: { otp?: string } | null;
+  };
+
+  const responseBody: GenericResponse =
+    process.env.NODE_ENV !== "production"
+      ? { success: true, message: genericMessage, data: { otp } }
+      : { success: true, message: genericMessage };
+
+  res.status(200).json(responseBody);
+};
+
+// Reset Password
+
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { email, otp, newPassword, confirmPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    res.status(400).json({
+      success: false,
+      error: "Email, OTP and newPassword are required",
+    });
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    res.status(400).json({ success: false, error: "Passwords do not match" });
+    return;
+  }
+
+  if (newPassword.length < 8 || newPassword.length > 72) {
+    res.status(400).json({
+      success: false,
+      error: "Password must be 8–72 characters",
+    });
+    return;
+  }
+
+  const user = await User.findOne({
+    email: email.toLowerCase().trim(),
+  }).select("+passwordHash +passwordResetOtp +passwordResetOtpExpiresAt");
+
+  if (
+    !user ||
+    !user.passwordResetOtp ||
+    !user.passwordResetOtpExpiresAt ||
+    user.passwordResetOtp !== otp ||
+    user.passwordResetOtpExpiresAt < new Date()
+  ) {
+    res.status(400).json({ success: false, error: "Invalid or expired OTP" });
+    return;
+  }
+
+  user.passwordHash = newPassword; // pre-save hook hashes this
+  (user as unknown as Record<string, unknown>).passwordResetOtp = undefined;
+  (user as unknown as Record<string, unknown>).passwordResetOtpExpiresAt =
+    undefined;
+  user.refreshTokenHash = undefined; // invalidate all sessions
+  await user.save();
+
+  clearTokenCookies(res);
+
+  res.status(200).json({
+    success: true,
+    message: "Password reset successfully. Please log in again.",
+  });
+};
+
+// The remainder of the file (login, logout, refresh, getMe, etc.) remains unchanged below
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
@@ -272,8 +409,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   });
 };
 
-// Logout
-
 export const logout = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -282,8 +417,6 @@ export const logout = async (
   clearTokenCookies(res);
   res.status(200).json({ success: true, message: "Logged out successfully" });
 };
-
-// Refresh
 
 export const refresh = async (req: Request, res: Response): Promise<void> => {
   const token = req.cookies?.refreshToken;
@@ -339,8 +472,6 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// Get Me
-
 export const getMe = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -351,109 +482,4 @@ export const getMe = async (
     return;
   }
   res.status(200).json({ success: true, data: { user } });
-};
-
-// Forgot Password
-
-export const forgotPassword = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
-  const { email } = req.body;
-
-  if (typeof email !== "string" || !email.trim()) {
-    res.status(400).json({ success: false, error: "Email is required" });
-    return;
-  }
-
-  const genericResponse = {
-    success: true,
-    message: "If an account with that email exists, a reset OTP has been sent.",
-  };
-
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
-
-  if (!user) {
-    res.status(200).json(genericResponse);
-    return;
-  }
-
-  const otp = generateOTP();
-  const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
-
-  await User.findByIdAndUpdate(user._id, {
-    passwordResetOtp: otp,
-    passwordResetOtpExpiresAt: otpExpiresAt,
-  });
-
-  try {
-    await sendEmail({
-      to: user.email,
-      subject: "Your TrustEats password reset code",
-      html: otpEmailTemplate(otp, "reset"),
-    });
-  } catch (emailErr) {
-    console.error("[ForgotPassword] Email failed:", emailErr);
-  }
-
-  res.status(200).json(genericResponse);
-};
-
-// Reset Password
-
-export const resetPassword = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
-  const { email, otp, newPassword, confirmPassword } = req.body;
-
-  if (!email || !otp || !newPassword) {
-    res.status(400).json({
-      success: false,
-      error: "Email, OTP and newPassword are required",
-    });
-    return;
-  }
-
-  if (newPassword !== confirmPassword) {
-    res.status(400).json({ success: false, error: "Passwords do not match" });
-    return;
-  }
-
-  if (newPassword.length < 8 || newPassword.length > 72) {
-    res.status(400).json({
-      success: false,
-      error: "Password must be 8–72 characters",
-    });
-    return;
-  }
-
-  const user = await User.findOne({
-    email: email.toLowerCase().trim(),
-  }).select("+passwordHash +passwordResetOtp +passwordResetOtpExpiresAt");
-
-  if (
-    !user ||
-    !user.passwordResetOtp ||
-    !user.passwordResetOtpExpiresAt ||
-    user.passwordResetOtp !== otp ||
-    user.passwordResetOtpExpiresAt < new Date()
-  ) {
-    res.status(400).json({ success: false, error: "Invalid or expired OTP" });
-    return;
-  }
-
-  user.passwordHash = newPassword; // pre-save hook hashes this
-  (user as unknown as Record<string, unknown>).passwordResetOtp = undefined;
-  (user as unknown as Record<string, unknown>).passwordResetOtpExpiresAt =
-    undefined;
-  user.refreshTokenHash = undefined; // invalidate all sessions
-  await user.save();
-
-  clearTokenCookies(res);
-
-  res.status(200).json({
-    success: true,
-    message: "Password reset successfully. Please log in again.",
-  });
 };
