@@ -11,7 +11,7 @@ import { AuthenticatedRequest } from "../../types";
 import { sendEmail } from "../../utils/sendEmail";
 import {
   manufacturerApprovalTemplate,
-  manufacturerSuspensionTemplate,
+  // manufacturerSuspensionTemplate,
 } from "../../utils/emailTemplates";
 
 export const approveManufacturer = async (
@@ -88,18 +88,20 @@ export const suspendManufacturer = async (
   await manufacturer.save();
 
   // Send suspension notification email
-  try {
-    const mfrUser = await User.findById(manufacturer.userId);
-    if (mfrUser) {
-      await sendEmail({
-        to: mfrUser.email,
-        subject: "Your TrustEats account has been suspended!",
-        html: manufacturerSuspensionTemplate(manufacturer.companyName, reason),
-      });
-    }
-  } catch (emailErr) {
-    console.error("[Suspend] Email failed:", emailErr);
-  }
+  // DEMO MODE: email notifications disabled
+  // try {
+  //   const mfrUser = await User.findById(manufacturer.userId);
+  //   if (mfrUser) {
+  //     await sendEmail({
+  //       to: mfrUser.email,
+  //       subject: 'Your TrustEats manufacturer account has been approved',
+  //       html: manufacturerApprovalTemplate(manufacturer.companyName),
+  //     });
+  //   }
+  // } catch (emailErr) {
+  //   console.error('[Approve] Email failed:', emailErr);
+  // }
+  console.log(`[DEMO] Manufacturer approved: ${manufacturer.companyName}`);
 
   await AuditLog.create({
     action: "manufacturer.suspended",
