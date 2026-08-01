@@ -77,9 +77,23 @@ export default function SignUpPage() {
         termsAccepted: termsAgreed,
       };
 
+      // register now returns the auth result; if the backend logs the user in
+      // and returns a token/manufacturer, go to the dashboard. Otherwise send
+      // the user to the Verify Email flow (OTP) where they must enter the code.
+      const result = await register(payload);
 
-      await register(payload);
-      navigate(ROUTES.DASHBOARD);
+      // If the backend provided a token or user object, assume user is signed in
+      const didAutoLogin = !!(result && (result.token || result.manufacturer));
+
+      if (didAutoLogin) {
+        navigate(ROUTES.DASHBOARD);
+      } else {
+        // If the backend returned an otp in the register response (dev-only), pass it
+        // to the Verify Email page so inputs can be pre-filled for testing.
+        // register now returns { manufacturer?, token?, otp? } in dev.
+        const otp = (result as any)?.otp;
+        navigate(ROUTES.VERIFY_EMAIL, { state: { email: form.email, otp } });
+      }
     } catch (err) {
       setError(
         (err as { message?: string })?.message ??

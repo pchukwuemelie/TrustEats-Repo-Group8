@@ -13,7 +13,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  // register now returns the auth result (so callers can decide next steps)
+  register: (data: RegisterRequest) => Promise<any>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (data: RegisterRequest) => {
     const result = await authService.register(data);
     setUser(result.manufacturer ?? null);
+    return result; // return the auth response so callers can route accordingly
   }, []);
 
   const refreshUser = useCallback(async () => {
