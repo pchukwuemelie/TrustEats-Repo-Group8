@@ -13,7 +13,12 @@ export const requireAuth = (
   res: Response,
   next: NextFunction,
 ): void => {
-  const token = req.cookies?.accessToken;
+  const cookieToken = req.cookies?.accessToken;
+  const headerToken =
+    typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : undefined;
+  const token = cookieToken ?? headerToken;
 
   if (!token) {
     res

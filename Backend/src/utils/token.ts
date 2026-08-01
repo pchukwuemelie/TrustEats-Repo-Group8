@@ -30,14 +30,12 @@ export const setTokenCookies = (
   refreshToken: string,
 ): void => {
   const isProd = process.env.NODE_ENV === "production";
-  // For cross-site frontends (frontend origin != api origin) we need SameSite=None and Secure=true
-  // in production so browsers will send cookies on cross-site requests. For local development
-  // we'll use SameSite=lax so cookies are usable on same-site localhost flows.
+
   const sameSiteSetting: "none" | "lax" = isProd ? "none" : "lax";
 
   const accessCookieOpts: Record<string, any> = {
     httpOnly: true,
-    secure: isProd,
+    secure:isProd,
     sameSite: sameSiteSetting,
     maxAge: 15 * 60 * 1000,
     path: "/",
@@ -47,12 +45,11 @@ export const setTokenCookies = (
     httpOnly: true,
     secure: isProd,
     sameSite: sameSiteSetting,
+    // Keep refresh cookie for 7 days (matches refresh token expiry)
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    // Keep refresh cookie scoped to the auth refresh path to limit exposure.
     path: "/api/v1/auth/refresh",
   };
 
-  // Optional explicit domain (useful when running behind certain proxies)
   if (process.env.COOKIE_DOMAIN) {
     accessCookieOpts.domain = process.env.COOKIE_DOMAIN;
     refreshCookieOpts.domain = process.env.COOKIE_DOMAIN;
@@ -60,7 +57,7 @@ export const setTokenCookies = (
 
   res.cookie("accessToken", accessToken, accessCookieOpts);
   res.cookie("refreshToken", refreshToken, refreshCookieOpts);
-};
+}; 
 
 export const clearTokenCookies = (res: Response): void => {
   const opts: Record<string, any> = { path: "/" };
