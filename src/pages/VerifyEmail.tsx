@@ -1,4 +1,10 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { useLocation } from "react-router"; // to read navigation `state` for prefilling OTP
+
+interface LocationState {
+  email?: string;
+  otp?: string;
+}
 import emailImage from "../assets/email.png";
 
 const VerifyEmail = () => {
@@ -8,7 +14,29 @@ const VerifyEmail = () => {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Replace this with your API verification later
-  const correctOtp = "123456";
+  const correctOtp = "123456"; // fallback value
+
+  // Prefill OTP if navigation state included `email` or if the server returned an OTP in state
+  // The SignUpPage navigates with: navigate(ROUTES.VERIFY_EMAIL, { state: { email: form.email } })
+  // If the router state also contains `otp` (dev-only), prefill inputs automatically.
+  // Access router state via the history location — React Router v6 passes it to the component via `useLocation`.
+  const location = useLocation();
+  const state = (location.state ?? {}) as LocationState;
+
+  // Prefill OTP during first render from navigation state (dev-only otp) — useEffect so we don't
+  // call setState during render and to avoid clobbering user input after they start typing.
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (prefilledRef.current) return;
+    if (!state.otp || state.otp.length !== 6) return;
+    // Only prefill when inputs are empty to avoid clobbering user typing
+    if (otp.every((d) => d === "")) {
+      setOtp(state.otp.split(""));
+      prefilledRef.current = true;
+    }
+    // we only want to run this when navigation state.otp changes
+  }, [state.otp]);
+
 
   const verifyOtp = (enteredOtp: string) => {
     if (enteredOtp === correctOtp) {

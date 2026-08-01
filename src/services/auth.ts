@@ -36,9 +36,11 @@ export const authService = {
     const payload = (res.data && res.data.data) ? res.data.data : res.data;
     const manufacturer = (payload && (payload.manufacturer ?? payload.user)) ?? undefined;
     const token = (payload && (payload.token ?? payload.accessToken ?? payload.access_token)) ?? undefined;
+    const otp = (res.data && res.data.data && (res.data.data.otp ?? res.data.otp)) ?? undefined;
     const result: AuthResponse = { manufacturer, token };
     storeAuth(result);
-    return result;
+    // Return otp separately to allow callers to prefill in dev
+    return { ...result, otp } as AuthResponse & { otp?: string };
   },
 
   logout: async () => {
