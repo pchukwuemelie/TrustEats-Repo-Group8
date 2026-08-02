@@ -48,7 +48,7 @@ for (const key of REQUIRED_ENV_VARS) {
 
 const app = express();
 
-// Security middleware 
+// Security middleware 94 must come first
 app.use(helmet());
 
 // CORS configuration
@@ -119,7 +119,7 @@ app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Route not found" });
 });
 
-// Global error handler 
+// Global error handler 94 must come last
 app.use(errorHandler);
 
 // Start server
@@ -132,6 +132,9 @@ const start = async () => {
     console.log(`TrustEats API is live on http://localhost:${PORT}`);
     console.log(`   Environment: ${process.env.NODE_ENV}`);
     console.log(`   Health: http://localhost:${PORT}/health`);
+    console.log(
+      `   Manufacturer onboarding: http://localhost:${PORT}/api/v1/manufacturers/register-account`,
+    );
   });
 };
 

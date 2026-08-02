@@ -9,10 +9,13 @@ export interface IProduct extends Document {
   ingredients?: string;
   storageInfo?: string;
   countryOfOrigin: string;
+  nafdacNumber?: string;
   imageUrl?: string;
   imagePublicId?: string;
   category: string;
   isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const sanitise = (val: string) =>
@@ -52,6 +55,12 @@ const ProductSchema = new Schema<IProduct>(
       type: String,
       required: true,
       default: "Nigeria",
+      set: sanitise,
+    },
+    nafdacNumber: {
+      type: String,
+      trim: true,
+      maxlength: 50,
       set: sanitise,
     },
     imageUrl: { type: String },

@@ -11,13 +11,12 @@ export const getAnalyticsSummary = async (
 ): Promise<void> => {
   const manufacturer = await Manufacturer.findOne({
     userId: req.user!.userId,
-    status: "approved",
   });
 
   if (!manufacturer) {
-    res.status(403).json({
+    res.status(404).json({
       success: false,
-      error: "Manufacturer profile not found or not approved",
+      error: "Manufacturer profile not found",
     });
     return;
   }
@@ -32,6 +31,7 @@ export const getAnalyticsSummary = async (
     suspiciousScans,
     fakeScans,
     recentFlags,
+    recentProducts,
   ] = await Promise.all([
     Product.countDocuments({ manufacturerId: mfrId, isActive: true }),
     VerificationCode.countDocuments({ manufacturerId: mfrId }),
@@ -47,11 +47,21 @@ export const getAnalyticsSummary = async (
       .limit(20)
       .populate("productId", "name brand imageUrl")
       .lean(),
+    Product.find({ manufacturerId: mfrId, isActive: true })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("name brand imageUrl createdAt")
+      .lean(),
   ]);
 
   res.status(200).json({
     success: true,
     data: {
+      manufacturer: {
+        id: manufacturer._id,
+        companyName: manufacturer.companyName,
+        status: manufacturer.status,
+      },
       totalProducts,
       totalCodesIssued,
       totalScans,
@@ -67,6 +77,13 @@ export const getAnalyticsSummary = async (
         location: flag.location,
         product: flag.productId || null,
         code: flag.code,
+      })),
+      recentProducts: recentProducts.map((product) => ({
+        id: product._id,
+        name: product.name,
+        brand: product.brand,
+        imageUrl: product.imageUrl,
+        createdAt: product.createdAt,
       })),
     },
   });

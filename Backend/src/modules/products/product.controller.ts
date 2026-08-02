@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { Types } from "mongoose";
 import Product from "./product.model";
+import VerificationCode from "../verification/verificationCode.model";
 import Manufacturer from "../manufacturers/manufacturer.model";
 import AuditLog from "../admin/auditLog.model";
 import { AuthenticatedRequest } from "../../types";
@@ -32,6 +33,7 @@ export const createProduct = async (
     storageInfo,
     countryOfOrigin,
     category,
+    nafdacNumber,
   } = req.body;
 
   if (!name || !brand || !description || !category) {
@@ -59,6 +61,7 @@ export const createProduct = async (
     ingredients,
     storageInfo,
     countryOfOrigin: countryOfOrigin || "Nigeria",
+    nafdacNumber,
     category,
     imageUrl,
   });
@@ -87,16 +90,28 @@ export const getMyProducts = async (
   const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
   const skip = (page - 1) * limit;
 
-  const [products, total] = await Promise.all([
-    Product.find({ manufacturerId: manufacturer._id, isActive: true })
+  const productFilter = { manufacturerId: manufacturer._id, isActive: true };
+  const [rawProducts, total] = await Promise.all([
+    Product.find(productFilter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
-    Product.countDocuments({
-      manufacturerId: manufacturer._id,
-      isActive: true,
-    }),
+      .limit(limit)
+      .lean(),
+    Product.countDocuments(productFilter),
   ]);
+
+  const productIds = rawProducts.map((product) => product._id);
+  const generatedProductIds = await VerificationCode.distinct("productId", {
+    manufacturerId: manufacturer._id,
+    productId: { $in: productIds },
+  });
+  const generatedProductIdSet = new Set(
+    generatedProductIds.map((id) => id.toString()),
+  );
+  const products = rawProducts.map((product) => ({
+    ...product,
+    qrGenerated: generatedProductIdSet.has(product._id.toString()),
+  }));
 
   res.status(200).json({
     success: true,

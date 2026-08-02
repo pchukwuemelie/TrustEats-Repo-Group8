@@ -6,7 +6,7 @@ import Report from "../reports/report.model";
 import Batch from "../batches/batch.model";
 import VerificationCode from "../verification/verificationCode.model";
 import AuditLog from "./auditLog.model";
-import { AuthenticatedRequest } from "../../types";
+import { AuthenticatedRequest, ManufacturerStatus } from "../../types";
 
 import { sendEmail } from "../../utils/sendEmail";
 import {
@@ -126,6 +126,39 @@ export const getPendingManufacturers = async (
     .populate("userId", "email firstName lastName");
 
   res.status(200).json({ success: true, data: { manufacturers } });
+};
+
+export const getManufacturers = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  const status = req.query.status as string | undefined;
+  const filter: { status?: ManufacturerStatus } = {};
+  if (status && ["pending", "approved", "suspended"].includes(status)) {
+    filter.status = status as ManufacturerStatus;
+  }
+
+  const manufacturers = await Manufacturer.find(filter)
+    .sort({ createdAt: -1 })
+    .populate("userId", "email firstName lastName");
+
+  res.status(200).json({ success: true, data: { manufacturers } });
+};
+
+export const getManufacturerById = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  const manufacturer = await Manufacturer.findById(req.params.manufacturerId)
+    .select("-certificateOfRecognitionPublicId -logoPublicId")
+    .populate("userId", "email firstName lastName");
+
+  if (!manufacturer) {
+    res.status(404).json({ success: false, error: "Manufacturer not found" });
+    return;
+  }
+
+  res.status(200).json({ success: true, data: { manufacturer } });
 };
 
 export const getPendingReports = async (

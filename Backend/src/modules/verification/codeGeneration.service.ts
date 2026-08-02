@@ -1,8 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { Types } from "mongoose";
 import VerificationCode from "./verificationCode.model";
-import { generateQRCodeBuffer } from "../../utils/generateQRCode";
-import { uploadToCloudinary } from "../../utils/uploadToCloudinary";
+import { generateQRCodeDataURL } from "../../utils/generateQRCode";
 
 interface GenerateCodesOptions {
   productId: Types.ObjectId;
@@ -29,12 +28,7 @@ export const generateCodesForBatch = async (
 
   for (let i = 0; i < quantity; i++) {
     const code = uuidv4();
-    const qrBuffer = await generateQRCodeBuffer(code);
-    const { url: qrCodeUrl, publicId: qrCodePublicId } =
-      await uploadToCloudinary(
-        qrBuffer,
-        `trusteats/qr-codes/${manufacturerId.toString()}`,
-      );
+    const qrCodeUrl = await generateQRCodeDataURL(code);
 
     await VerificationCode.create({
       code,
@@ -42,7 +36,7 @@ export const generateCodesForBatch = async (
       batchId,
       manufacturerId,
       qrCodeUrl,
-      qrCodePublicId,
+      qrCodePublicId: `local:${code}`,
     });
 
     results.push({ code, qrCodeUrl });

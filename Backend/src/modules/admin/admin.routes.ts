@@ -2,6 +2,8 @@ import { Router } from "express";
 import {
   approveManufacturer,
   suspendManufacturer,
+  getManufacturers,
+  getManufacturerById,
   getPendingManufacturers,
   getPendingReports,
   reviewReport,
@@ -17,7 +19,9 @@ const router = Router();
 router.use(requireAuth, requireRole("admin"));
 
 // Manufacturer management
+router.get("/manufacturers", getManufacturers);
 router.get("/manufacturers/pending", getPendingManufacturers);
+router.get("/manufacturers/:manufacturerId", getManufacturerById);
 router.patch("/manufacturers/:manufacturerId/approve", approveManufacturer);
 router.patch("/manufacturers/:manufacturerId/suspend", suspendManufacturer);
 

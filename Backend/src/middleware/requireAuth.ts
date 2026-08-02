@@ -18,7 +18,7 @@ export const requireAuth = (
     typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")
       ? req.headers.authorization.split(" ")[1]
       : undefined;
-  const token = cookieToken ?? headerToken;
+  const token = headerToken ?? cookieToken;
 
   if (!token) {
     res
