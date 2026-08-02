@@ -48,7 +48,7 @@ for (const key of REQUIRED_ENV_VARS) {
 
 const app = express();
 
-// Security middleware 94 must come first
+// Security middleware must come first
 app.use(helmet());
 
 // CORS configuration

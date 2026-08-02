@@ -5,7 +5,7 @@ import {
   verifyProduct,
   getScanHistory,
 } from "./verification.controller";
-import { requireAuth } from "../../middleware/requireAuth";
+import { optionalAuth, requireAuth } from "../../middleware/requireAuth";
 import { noCache } from "../../middleware/noCache";
 
 const router = Router();
@@ -23,9 +23,9 @@ const verifyLimiter = rateLimit({
 router.get("/history", requireAuth, noCache, getScanHistory);
 
 // QR code URL-based scan. This is what the camera opens directly
-router.get("/:code", verifyLimiter, verifyByCode);
+router.get("/:code", verifyLimiter, optionalAuth, verifyByCode);
 
 // App-based scan with optional geo context
-router.post("/", verifyLimiter, verifyProduct);
+router.post("/", verifyLimiter, optionalAuth, verifyProduct);
 
 export default router;

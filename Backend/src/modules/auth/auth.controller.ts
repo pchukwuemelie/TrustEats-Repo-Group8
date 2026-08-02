@@ -20,6 +20,8 @@ const generateOTP = (): string =>
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
+const shouldExposeDemoOtp = (): boolean => process.env.HIDE_DEMO_OTP !== "true";
+
 // Register
 
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -108,7 +110,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       userId: user._id,
       role: user.role,
       // DEMO ONLY, include otp in response for local testing
-      otp: process.env.NODE_ENV !== "production" ? otp : undefined,
+      otp: shouldExposeDemoOtp() ? otp : undefined,
     },
   });
 };
@@ -237,7 +239,7 @@ export const resendVerificationOtp = async (
   };
 
   const responseBody: GenericResponse =
-    process.env.NODE_ENV !== "production"
+    shouldExposeDemoOtp()
       ? { success: true, message: genericMessage, data: { otp } }
       : { success: true, message: genericMessage };
 
@@ -295,7 +297,7 @@ export const forgotPassword = async (
   };
 
   const responseBody: GenericResponse =
-    process.env.NODE_ENV !== "production"
+    shouldExposeDemoOtp()
       ? { success: true, message: genericMessage, data: { otp } }
       : { success: true, message: genericMessage };
 

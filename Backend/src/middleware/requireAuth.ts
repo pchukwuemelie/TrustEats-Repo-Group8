@@ -46,6 +46,41 @@ export const requireAuth = (
   }
 };
 
+export const optionalAuth = (
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void => {
+  const cookieToken = req.cookies?.accessToken;
+  const headerToken =
+    typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : undefined;
+  const token = headerToken ?? cookieToken;
+
+  if (!token) {
+    next();
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_ACCESS_SECRET as string,
+    ) as JwtPayload;
+
+    req.user = {
+      userId: decoded.userId,
+      role: decoded.role,
+      manufacturerId: decoded.manufacturerId,
+    };
+  } catch {
+    // Public scan routes must keep working even when an optional token is stale.
+  }
+
+  next();
+};
+
 export const requireRole =
   (...roles: UserRole[]) =>
   (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
